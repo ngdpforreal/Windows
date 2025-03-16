@@ -1,0 +1,42 @@
+name: Build AOSP Environment
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install required packages
+        run: |
+          sudo apt update
+          sudo apt install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf \
+            imagemagick lib32readline-dev lib32z1-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils \
+            lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev xattr openjdk-11-jdk jq \
+            android-sdk-libsparse-utils python3 python3-pip repo
+
+      - name: Initialize repo
+        run: |
+          repo init -u https://github.com/PixelOS-AOSP/manifest.git -b fourteen --git-lfs
+
+      - name: Clone local manifests
+        run: |
+          git clone https://github.com/MisterZtr/treble_manifest.git .repo/local_manifests -b 14
+
+      - name: Sync repo
+        run: |
+          repo sync --force-sync --optimized-fetch --no-tags --no-clone-bundle --prune -j$(nproc --all)
+
+      - name: Generate signing keys
+        run: |
+          subject='/C=US/ST=State/L=City/O=Android/OU=Android/CN=Android/emailAddress=email@example.com'
+          for x in releasekey platform shared media networkstack verity otakey testkey sdk_sandbox bluetooth nfc; do \
+            ./development/tools/make_key vendor/aosp/signing/keys/$x "$subject"; \
+          done
